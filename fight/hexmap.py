@@ -1,0 +1,110 @@
+import pygame as pg
+import math
+# 地图格
+class HexagonalMap(): # 类在使用时中心点在（7，7），内部储存时为（6，6）
+    def __init__(self,   position=None):  # rows,cols为奇数
+        self.Q = math.sqrt(3) / 2
+        self.HEX_SIZE = 36  # 外接圆半径
+        self.HEX_SIZE_In = self.HEX_SIZE * self.Q  # 内接圆半径
+        self.center_x = 700  # 中心点坐标
+        self.center_y = 400
+        self.card_exist = None
+        self.enemgy_exist = None
+        self.mouse_pos = None
+        self.rows = 13  # 行数
+        self.cols = 13  # 列数
+        self.cols_per_row = [self.cols - abs(i - (self.rows - 1) //2 - 1) for i in range(1, self.rows + 1)] # 每行的列数
+        self.hexagons = [[{} for _ in range(self.cols_per_row[i])] for i in range(self.rows)] # 创建二维列表，内含空字典
+        self.Screen_length = 1400
+        self.Screen_width = 800
+        self.WHITE = (255, 255, 255)
+        self.GRAY = (128, 128, 128)  # 定义灰色
+        self.RED = (255, 0, 0)
+
+
+    def _calculate_hex_coords(self, row, col):  # 用于计算给定行和列索引的六边形的中心坐标。
+        hex_side = self.HEX_SIZE  # 六边形边长
+        x = self.center_x  # 防报错
+        tar_x = ((row + (self.rows - 1) // 2) + 1) / 2  # 每行的对称轴所在
+        if row > 7:
+            tar_x = ((14 - row + (self.rows - 1) // 2) + 1) / 2  # 每行的对称轴所在
+        x = self.center_x + (col - tar_x) * hex_side * math.sqrt(3)  # 计算六边形中心的x坐标
+        y = self.center_y + (row - (self.rows - 1) //2 - 1) * hex_side * 1.5    # 计算六边形中心的y坐标
+        return x, y
+
+
+    def is_valid_position(self, row, col):  # 检查给定的行和列是否在地图范围内
+        return 1 <= row < self.rows + 1 and 1 <= col < row + (self.rows - 1) // 2 + 1
+
+
+    def add_hexagon_data(self, row, col, card = None, enemgy = None):  # 用字典储存所有格的信息(x,y:像素坐标；c:什么踏；e:什么敌人)
+        if self.is_valid_position(row, col):
+            x, y = self._calculate_hex_coords(row, col)
+            self.enemgy_exist = enemgy
+            self.card_exist = card
+            self.hexagons[row - 1][col - 1] = {'x': x, 'y': y, 'c': self.card_exist, 'e': self.enemgy_exist}
+
+
+    def _get_hexagon_coord(self, row, col):  # 返回某行列的六边形的中心点坐标
+        if self.is_valid_position(row, col):
+            return self.hexagons[row - 1][col - 1]
+        return None
+
+
+    def get_hexagon_rc(self, x, y):  # 返回某中心点坐标的六边形的行列
+        if self.hexagons:
+            for row in range(1, 8):
+                if self.center_y - (7 - row) * self.HEX_SIZE * 1.5 == y:
+                    for col in range(1, row + 7):
+                        tar_x =  ((row + (self.rows - 1) // 2) + 1) / 2
+                        if self.center_x + (col - tar_x) * self.HEX_SIZE * math.sqrt(3) == x:
+                            return row,col
+            for row in range(6, 0, -1):
+                if self.center_y + (7 - row) * self.HEX_SIZE * 1.5 == y:
+                    for col in range(1, row + 7):
+                        tar_x =  ((row + (self.rows - 1) // 2) + 1) / 2
+                        if self.center_x + (col - tar_x) * self.HEX_SIZE * math.sqrt(3) == x:
+                            return 14 - row,col
+        return None
+
+
+    def get_closest_hexagon_xy(self, mouse_pos): # 返回离鼠标点最近的格子的行列
+        hex_centers = []
+        for i in range(1, 8):
+            for j in range(1, i + 7):
+                H = self._get_hexagon_coord(i, j)
+                hex_centers.append((H["x"], H["y"]))
+        for i in range(6, 0, -1):
+            for j in range(1, i + 7):
+                H = self._get_hexagon_coord(14 - i, j)
+                hex_centers.append((H["x"], H["y"]))
+        min_distance = float('inf')  # 表示无穷大
+        closest_hex = None
+        for hex_center in hex_centers:
+            distance = ((hex_center[0] - mouse_pos[0]) ** 2 + (hex_center[1] - mouse_pos[1]) ** 2) ** 0.5  # 计算两点的欧几里得距离
+            if distance < min_distance:
+                min_distance = distance
+                closest_hex = hex_center
+        return closest_hex
+
+
+    def draw_hexagon(self, surface, color, x, y): # 绘制六边形函数
+        for i in range(6):
+            first = (x + math.sin(math.pi * i / 3) * self.HEX_SIZE, y + self.HEX_SIZE * math.cos(math.pi * i / 3))
+            end = (x + math.sin(math.pi * (i + 1) / 3) * self.HEX_SIZE, y + self.HEX_SIZE * math.cos(math.pi * (i + 1) / 3))
+            pg.draw.line(surface, color, first, end, 1)
+
+
+    def draw(self, surface, color): # 一键绘制地图
+        for row in range(self.rows):
+            for col in range(self.cols_per_row[row]):
+                hexagon = self._get_hexagon_coord(row + 1, col + 1)
+                if hexagon:
+                    self.draw_hexagon(surface, color, hexagon['x'], hexagon['y']) # 绘制一个地图格
+
+
+    def star_map(self):
+        # 填充地图数据
+        for row in range(self.rows):
+            for col in range(self.cols_per_row[row]):
+               self.add_hexagon_data(row + 1, col + 1)
