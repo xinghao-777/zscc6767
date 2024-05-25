@@ -20,18 +20,20 @@ class Control():
         self.GRAY = (128, 128, 128)  # 定义灰色
         self.RED = (255, 0, 0)
 
-    def event_loop(self):
+
+    def event_loop(self):#捕捉鼠标信息
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 self.done = True
             elif event.type == pg.KEYDOWN:
                 self.keys = pg.key.get_pressed() # 获取键盘所有按键的状态
+
             elif event.type == pg.KEYUP:
                 self.keys = pg.key.get_pressed()
+
             elif event.type == pg.MOUSEBUTTONDOWN:
                 self.mouse_pos = pg.mouse.get_pos()
                 self.mouse_click[0], _, self.mouse_click[1] = pg.mouse.get_pressed()
-                print('pos:', self.mouse_pos, ' mouse:', self.mouse_click)
 
     def main(self):
         while not self.done:
@@ -50,20 +52,29 @@ class Control():
         # 填充背景,在地图前使用，不然覆盖地图
         screen.fill(self.WHITE)
         # 创建实例对象：地图
-        Map.star_map()
-        running = True
-        while running:
-            # 绘制地图
-            Map.draw(screen, self.GRAY)
-            # 凸显中心点
-            pg.draw.circle(screen, self.RED, (int(Map.Screen_length // 2), int(Map.Screen_width // 2)), 9, width=0)
-            # 控制帧率
-            self.clock.tick(self.fps)
+        Map.star_map(screen, self.GRAY)
+        # 总精灵组
+        all_sprites = pg.sprite.Group()
 
+        '''# 加载精灵
+        my_sprite = my_sprite.MySprite(screen, 'path_to_your_image.png')
+        all_sprites.add(my_sprite)'''
+        running = True
+        # 凸显中心点
+        pg.draw.circle(screen, self.RED, (int(Map.Screen_length // 2), int(Map.Screen_width // 2)), 9, width=0)
+        while running:
             # 退出信号
             for event in pg.event.get():
                 if event.type == pg.QUIT:
                     running = False
+            # 更新所有精灵的状态
+            all_sprites.update()
+            # 精灵的渲染和显示
+
+
+
             # 更新显示
             pg.display.flip()
+            # 控制帧率
+            self.clock.tick(self.fps)
         pg.quit()

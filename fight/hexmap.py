@@ -3,9 +3,8 @@ import math
 # 地图格
 class HexagonalMap(): # 类在使用时中心点在（7，7），内部储存时为（6，6）
     def __init__(self,   position=None):  # rows,cols为奇数
-        self.Q = math.sqrt(3) / 2
         self.HEX_SIZE = 36  # 外接圆半径
-        self.HEX_SIZE_In = self.HEX_SIZE * self.Q  # 内接圆半径
+        self.HEX_SIZE_In = self.HEX_SIZE * math.sqrt(3) / 2  # 内接圆半径
         self.center_x = 700  # 中心点坐标
         self.center_y = 400
         self.card_exist = None
@@ -17,12 +16,9 @@ class HexagonalMap(): # 类在使用时中心点在（7，7），内部储存时
         self.hexagons = [[{} for _ in range(self.cols_per_row[i])] for i in range(self.rows)] # 创建二维列表，内含空字典
         self.Screen_length = 1400
         self.Screen_width = 800
-        self.WHITE = (255, 255, 255)
-        self.GRAY = (128, 128, 128)  # 定义灰色
-        self.RED = (255, 0, 0)
 
 
-    def _calculate_hex_coords(self, row, col):  # 用于计算给定行和列索引的六边形的中心坐标。
+    def calculate_hex_xy(self, row, col):  # 用于计算给定行和列索引的六边形的中心坐标。
         hex_side = self.HEX_SIZE  # 六边形边长
         x = self.center_x  # 防报错
         tar_x = ((row + (self.rows - 1) // 2) + 1) / 2  # 每行的对称轴所在
@@ -33,19 +29,26 @@ class HexagonalMap(): # 类在使用时中心点在（7，7），内部储存时
         return x, y
 
 
+    def calculate_hex_rc(self, row, col): # 用于计算给定行和列索引的六边形的以中心点为（0，0）分布的坐标。
+        r = row - (self.rows + 1) // 2
+        c = ((col - 1/2) - ((self.rows - 1) // 2 + row) / 2) * 2
+        return r, int(c)
+
+
     def is_valid_position(self, row, col):  # 检查给定的行和列是否在地图范围内
         return 1 <= row < self.rows + 1 and 1 <= col < row + (self.rows - 1) // 2 + 1
 
 
     def add_hexagon_data(self, row, col, card = None, enemgy = None):  # 用字典储存所有格的信息(x,y:像素坐标；c:什么踏；e:什么敌人)
         if self.is_valid_position(row, col):
-            x, y = self._calculate_hex_coords(row, col)
+            x, y = self.calculate_hex_xy(row, col)
+            r, c = self.calculate_hex_rc(row, col)
             self.enemgy_exist = enemgy
             self.card_exist = card
-            self.hexagons[row - 1][col - 1] = {'x': x, 'y': y, 'c': self.card_exist, 'e': self.enemgy_exist}
+            self.hexagons[row - 1][col - 1] = {'xy': (x, y), 'rc': (r, c), 'c': self.card_exist, 'e': self.enemgy_exist}
 
 
-    def _get_hexagon_coord(self, row, col):  # 返回某行列的六边形的中心点坐标
+    def get_hexagon_coord(self, row, col):  # 返回某行列的六边形的中心点坐标
         if self.is_valid_position(row, col):
             return self.hexagons[row - 1][col - 1]
         return None
@@ -72,11 +75,11 @@ class HexagonalMap(): # 类在使用时中心点在（7，7），内部储存时
         hex_centers = []
         for i in range(1, 8):
             for j in range(1, i + 7):
-                H = self._get_hexagon_coord(i, j)
+                H = self.get_hexagon_coord(i, j)
                 hex_centers.append((H["x"], H["y"]))
         for i in range(6, 0, -1):
             for j in range(1, i + 7):
-                H = self._get_hexagon_coord(14 - i, j)
+                H = self.get_hexagon_coord(14 - i, j)
                 hex_centers.append((H["x"], H["y"]))
         min_distance = float('inf')  # 表示无穷大
         closest_hex = None
@@ -88,23 +91,19 @@ class HexagonalMap(): # 类在使用时中心点在（7，7），内部储存时
         return closest_hex
 
 
-    def draw_hexagon(self, surface, color, x, y): # 绘制六边形函数
+    def draw_hexagon(self, surface, color, xy): # 绘制六边形函数
         for i in range(6):
-            first = (x + math.sin(math.pi * i / 3) * self.HEX_SIZE, y + self.HEX_SIZE * math.cos(math.pi * i / 3))
-            end = (x + math.sin(math.pi * (i + 1) / 3) * self.HEX_SIZE, y + self.HEX_SIZE * math.cos(math.pi * (i + 1) / 3))
+            first = (xy[0] + math.sin(math.pi * i / 3) * self.HEX_SIZE, xy[1] + self.HEX_SIZE * math.cos(math.pi * i / 3))
+            end = (xy[0] + math.sin(math.pi * (i + 1) / 3) * self.HEX_SIZE, xy[1] + self.HEX_SIZE * math.cos(math.pi * (i + 1) / 3))
             pg.draw.line(surface, color, first, end, 1)
 
-
-    def draw(self, surface, color): # 一键绘制地图
-        for row in range(self.rows):
-            for col in range(self.cols_per_row[row]):
-                hexagon = self._get_hexagon_coord(row + 1, col + 1)
-                if hexagon:
-                    self.draw_hexagon(surface, color, hexagon['x'], hexagon['y']) # 绘制一个地图格
-
-
-    def star_map(self):
+    def star_map(self, screen, color):
         # 填充地图数据
         for row in range(self.rows):
             for col in range(self.cols_per_row[row]):
                self.add_hexagon_data(row + 1, col + 1)
+        for row in range(self.rows):
+            for col in range(self.cols_per_row[row]):
+                coord = self.hexagons[row][col]["xy"]
+                if coord:
+                    self.draw_hexagon(screen, color, coord) # 绘制一个地图格
