@@ -5,8 +5,10 @@ class HexagonalMap(): # 类在使用时中心点在（7，7），内部储存时
     def __init__(self,   position=None):  # rows,cols为奇数
         self.HEX_SIZE = 36  # 外接圆半径
         self.HEX_SIZE_In = self.HEX_SIZE * math.sqrt(3) / 2  # 内接圆半径
-        self.center_x = 700  # 中心点坐标
-        self.center_y = 400
+        self.Screen_length = 1600
+        self.Screen_width = 1000
+        self.center_x = self.Screen_length // 2  # 中心点坐标
+        self.center_y = self.Screen_width // 2
         self.card_exist = None
         self.enemgy_exist = None
         self.mouse_pos = None
@@ -14,8 +16,7 @@ class HexagonalMap(): # 类在使用时中心点在（7，7），内部储存时
         self.cols = 13  # 列数
         self.cols_per_row = [self.cols - abs(i - (self.rows - 1) //2 - 1) for i in range(1, self.rows + 1)] # 每行的列数
         self.hexagons = [[{} for _ in range(self.cols_per_row[i])] for i in range(self.rows)] # 创建二维列表，内含空字典
-        self.Screen_length = 1400
-        self.Screen_width = 800
+
 
 
     def calculate_hex_xy(self, row, col):  # 用于计算给定行和列索引的六边形的中心坐标。

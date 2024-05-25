@@ -7,7 +7,7 @@ import random
 
 # 防御精灵
 class Cardsprite(pg.sprite.Sprite):  # 继承父类
-    def __init__(self, Map, pos=(0, 0), image_path=None):
+    def __init__(self, Map, pos=(32, 36), image_path=None):
         super().__init__()
         self.Map = Map  # 接受地图实例
         self.rc = None  # 未放之前无行列坐标
@@ -18,6 +18,7 @@ class Cardsprite(pg.sprite.Sprite):  # 继承父类
         self.damage = None  # 留给下级继承(当前血量)
         self.max_health = None  # 留给下级继承(初始血量)
         self.image = pg.image.load(image_path) if image_path else None
+        pos -= self.Map.HEX_SIZE_In, self.Map.HEX_SIZE
         self.rect = self.image.get_rect(topleft=pos) if self.image else None
 
     def place(self, game_state, pos):  # 放置塔数据在地图格上（pos为鼠标的位置（元组））
@@ -41,8 +42,9 @@ class Cardsprite(pg.sprite.Sprite):  # 继承父类
         if self.levels < 3:
             if self.levelpoint >= 5:  # 每五点经验升一级
                 self.max_health += 5
-                self.health = self.max_health
-                self.damage += 1
+                self.health = self.max_health # 回复满血
+                if self.damage:
+                    self.damage += 2
                 self.levelpoint = 0
                 self.levels += 1
 
@@ -75,17 +77,18 @@ class Shooter(Cardsprite):
         if self.damage > 0:
             dx = enemy_xy[0] - self.xy[0]
             dy = enemy_xy[1] - self.xy[1]
-            bullet = Shooter_bullet(self.xy[0], self.xy[1])  # 创建子弹实例
+            bullet = Shooter_bullet(self.xy[0], self.xy[1], self.damage)  # 创建子弹实例
             return bullet
 
 
 # 子弹模型
 class Bullet(pg.sprite.Sprite):
-    def __init__(self, x, y):
+    def __init__(self, x, y, damage = None):
         super().__init__()
         self.speed = None
         self.image = None
         self.direction = None
+        self.damage = damage
         self.x = x
         self.y = y
 
@@ -96,27 +99,25 @@ class Bullet(pg.sprite.Sprite):
         if not screen.get_rect().colliderect(self.rect):
             self.is_alive = False
 
-
 class Shooter_bullet(Bullet):
     def __init__(self, x, y):
-        super().__init__(x, y)
+        super().__init__(x, y, damage = None)
 
 
 # 敌方
 class Basic_enemgy(pg.sprite.Sprite):
-    def __init__(self, Map, screen, image_address = None):
+    def __init__(self, Map, pos = None, image_path = None):
         super().__init__()
         self.Map = Map  # 获取地图实例
         self.health = 20  # 血量
         self.attack = 10  # 攻击
         self.speed = self.Map.HEX_SIZE_In * 2  # 速度
-        self.survive = None  # 是否存活
-        self.image = pg.image.load(image_address)
-        self.create(screen)  # 调用本体方法，生成初始位置，并返回创建的精灵
+        self.image = pg.image.load(image_path) if image_path else None
+        self.rect = self.image.get_rect(topleft=pos) if self.image else None
+        self.create()  # 调用本体方法，生成初始位置
         self.xy = Map.hexagons[self.rc[0]][self.rc[1]]["xy"]
 
-    def create(self, screen):
-        sprites = pg.sprite.Group()
+    def create(self):
         # 只在外圈生成敌人
         row = random.randint(1,13) # 随机行（1到13）
         if row != 1 or row != 13: # 非首尾行只取改行的首尾列
@@ -125,8 +126,6 @@ class Basic_enemgy(pg.sprite.Sprite):
             col = random.randint(1,row + 6)
         self.Map.hexagons[row][col]["e"] += 1
         self.rc = row, col
-        sprites.add((screen, self.image))
-        return sprites
 
     def move(self):
         angle = math.degrees(math.atan2(self.rc[0], self.rc[1]))
@@ -146,6 +145,10 @@ class Basic_enemgy(pg.sprite.Sprite):
             self.xy[0] -= abs(1/60 * self.speed * math.cos(120))
         elif angle < -150 or angle >= 150: # 左
             self.xy[0] -= 1/60 * self.speed
+        if self.Map.get_closest_hexagon_xy(self.xy) != self.rc:
+            self.Map.hexagons[self.rc[0]][self.rc[1]]["e"] -= 1 # 先删除之前格的标记
+            self.rc = self.Map.get_closest_hexagon_xy(self.xy) # 根据xy坐标每次更新自己行列所在格
+            self.Map.hexagons[self.rc[0]][self.rc[1]]["e"] += 1 # 后增加当前格的标记
 
     def attach(self):
         pass
