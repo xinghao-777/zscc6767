@@ -1,15 +1,14 @@
 import math
 import pygame as pg
-import hexmap
-import mask
 import random
 
 
 # 防御精灵
 class Cardsprite(pg.sprite.Sprite):  # 继承父类
-    def __init__(self, Map, pos=(32, 36), image_path=None):
+    def __init__(self, Map, pos = None, image_path=None):
         super().__init__()
         self.Map = Map  # 接受地图实例
+        self.xy = self.Map.get_closest_hexagon_rc(pos)
         self.rc = None  # 未放之前无行列坐标
         self.levelpoint = 1  # 等级点数
         self.levels = 1  # 初始等级
@@ -17,13 +16,19 @@ class Cardsprite(pg.sprite.Sprite):  # 继承父类
         self.health = None  # 留给下级继承
         self.damage = None  # 留给下级继承(当前血量)
         self.max_health = None  # 留给下级继承(初始血量)
-        self.image = pg.image.load(image_path) if image_path else None
-        pos -= self.Map.HEX_SIZE_In, self.Map.HEX_SIZE
-        self.rect = self.image.get_rect(topleft=pos) if self.image else None
+        if image_path:
+            self.image = pg.image.load(image_path)
+            if self.xy is not None:  # 确保pos不是None
+                self.xy[0] -= self.Map.HEX_SIZE_In
+                self.xy[1] -= self.Map.HEX_SIZE
+            self.rect = self.image.get_rect(topleft = self.xy)
+        else:
+            self.image = None
+            self.rect = None
 
     def place(self, game_state, pos):  # 放置塔数据在地图格上（pos为鼠标的位置（元组））
         if game_state >= self.cost:
-            self.rc = self.Map.get_closest_hexagon_xy(self, pos)  # 获取当前鼠标点的行列
+            self.rc = self.Map.get_closest_hexagon_rc(self, pos)  # 获取当前鼠标点的行列
             if not self.Map.hexagons[self.rc[0]][self.rc[1]]["c"]:
                 game_state -= self.cost
                 self.xy = self.Map.hexagons[self.rc[0]][self.rc[1]]["xy"] # 根据行列坐标创建实际坐标
@@ -48,7 +53,7 @@ class Cardsprite(pg.sprite.Sprite):  # 继承父类
                 self.levelpoint = 0
                 self.levels += 1
 
-    def updata(self):
+    def updata(self, updata):
         if self.health <= 0:
             self.destroy()
         self.up_level()
@@ -80,6 +85,23 @@ class Shooter(Cardsprite):
             bullet = Shooter_bullet(self.xy[0], self.xy[1], self.damage)  # 创建子弹实例
             return bullet
 
+class Golder(Cardsprite):
+    def __init__(self, Map, image_path, pos=(0, 0)):
+        super().__init__(Map, pos, image_path)  # 传递必要的参数给父类
+        self.cost = 10
+        self.health = 10
+        self.product_rate = 5 # 每隔多少秒产生$
+        self.max_health = self.health
+        self.last_product_time = 0  # 上次产生资源的时间
+
+    def product(self, game_state, current_time):
+        # 如果当前时间与上次产生资源的时间之差大于或等于生产速率
+        if current_time - self.last_product_time >= self.product_rate:
+            # 产生资源
+            game_state += 5  # 每次加5$
+            # 更新上次产生资源的时间
+            self.last_product_time = current_time
+            return game_state
 
 # 子弹模型
 class Bullet(pg.sprite.Sprite):
@@ -103,7 +125,6 @@ class Shooter_bullet(Bullet):
     def __init__(self, x, y):
         super().__init__(x, y, damage = None)
 
-
 # 敌方
 class Basic_enemgy(pg.sprite.Sprite):
     def __init__(self, Map, pos = None, image_path = None):
@@ -111,7 +132,7 @@ class Basic_enemgy(pg.sprite.Sprite):
         self.Map = Map  # 获取地图实例
         self.health = 20  # 血量
         self.attack = 10  # 攻击
-        self.speed = self.Map.HEX_SIZE_In * 2  # 速度
+        self.speed = self.Map.HEX_SIZE_In * 2  # 速度,每秒多少格
         self.image = pg.image.load(image_path) if image_path else None
         self.rect = self.image.get_rect(topleft=pos) if self.image else None
         self.create()  # 调用本体方法，生成初始位置
@@ -119,35 +140,34 @@ class Basic_enemgy(pg.sprite.Sprite):
 
     def create(self):
         # 只在外圈生成敌人
-        row = random.randint(1,13) # 随机行（1到13）
+        list = [_ for _ in range(1,self.Map.rows + 1)]
+        row = random.choices(list, weights=[7,2,2,2,2,2,2,2,2,2,2,7])[0] # 随机行（1到13）
         if row != 1 or row != 13: # 非首尾行只取改行的首尾列
-            col = random.choice([1, row + 6])
+            col = random.choice([1, self.Map.cols_per_row[row-1]])
         else:
-            col = random.randint(1,row + 6)
+            col = random.randint(1,self.Map.cols_per_row[row-1])
         self.Map.hexagons[row][col]["e"] += 1
         self.rc = row, col
 
-    def move(self):
+    def remove(self):
         angle = math.degrees(math.atan2(self.rc[0], self.rc[1]))
-        if - 150 <= angle < - 90: # 左下
-            self.xy[1] += abs(1/60 * self.speed * math.sin(-120))
-            self.xy[0] -= abs(1/60 * self.speed * math.cos(-120))
-        elif -90 <= angle < -30: # 右下
-            self.xy[1] += abs(1/60 * self.speed * math.sin(-60))
-            self.xy[0] += abs(1/60 * self.speed * math.cos(-60))
-        elif -30 <= angle < 30: # 右
-            self.xy[0] += 1/60 * self.speed
-        elif 30 <= angle < 90: # 右上
-            self.xy[1] -= abs(1/60 * self.speed * math.sin(60))
-            self.xy[0] += abs(1/60 * self.speed * math.cos(60))
-        elif 90 <= angle < 150: # 左上
-            self.xy[1] -= abs(1/60 * self.speed * math.sin(120))
-            self.xy[0] -= abs(1/60 * self.speed * math.cos(120))
-        elif angle < -150 or angle >= 150: # 左
-            self.xy[0] -= 1/60 * self.speed
-        if self.Map.get_closest_hexagon_xy(self.xy) != self.rc:
+        for i in range(6):
+            if 90 - 60 * i <= angle < 30 - 60 * i:
+                if i < 3:
+                    if i != 1:
+                        self.xy[0] += self.speed / 60 * abs(math.cos(60 - 60 * i))
+                        self.xy[1] += self.speed / 60 * (i - 1) * abs(math.sin(60 - 60 * i))
+                    else:
+                        self.xy[0] += self.speed / 60 * 2 * abs(math.cos(60 - 60 * i))
+                else:
+                    if i != 4:
+                        self.xy[0] -= self.speed / 60 * abs(math.cos(60 - 60 * i))
+                        self.xy[1] -= self.speed / 60 * (i - 4) * abs(math.sin(60 - 60 * i))
+                    else:
+                        self.xy[0] -= self.speed / 60 * 2 * abs(math.cos(60 - 60 * i))
+        if self.Map.get_closest_hexagon_rc(self.xy) != self.rc:
             self.Map.hexagons[self.rc[0]][self.rc[1]]["e"] -= 1 # 先删除之前格的标记
-            self.rc = self.Map.get_closest_hexagon_xy(self.xy) # 根据xy坐标每次更新自己行列所在格
+            self.rc = self.Map.get_closest_hexagon_rc(self.xy) # 根据xy坐标每次更新自己行列所在格
             self.Map.hexagons[self.rc[0]][self.rc[1]]["e"] += 1 # 后增加当前格的标记
 
     def attach(self):

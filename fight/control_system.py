@@ -2,8 +2,7 @@ import pygame as pg
 import math
 import hexmap
 import mask
-
-
+import my_sprite
 class Control():
     def __init__(self):
         self.clock = pg.time.Clock() # 时钟
@@ -13,12 +12,23 @@ class Control():
         self.mouse_pos = None # 鼠标坐标
         font = pg.font.Font("fonts\my_font.ttf", 20) # 设置字体(易bug，别人没有)
         self.font = font.render(str(self.resource), True, (255,255,255))  # 为资源量的显示，需要blit()绘制
-        self.mouse_click = [False, False]  # value:[left mouse click, right mouse click]
-        self.current_time = 0.0
-        self.done = False
+        self.Screen_length = 1600
+        self.Screen_width = 1000
+        self.current_time = 0.0 # 时间
+        self.done = False # 主循环的控制
         self.WHITE = (255, 255, 255)
         self.GRAY = (128, 128, 128)  # 定义灰色
         self.RED = (255, 0, 0)
+        # 创建实例对象：地图
+        self.Map = hexmap.HexagonalMap(self.Screen_length, self.Screen_width)
+        # 窗口属性
+        self.screen = pg.display.set_mode((self.Map.Screen_length, self.Map.Screen_width))
+        self.Screen_length = self.Map.Screen_length
+        self.Screen_width = self.Map.Screen_width
+        # 填充背景,在地图前使用，不然覆盖地图
+        self.screen.fill(self.WHITE)
+        # 绘制地图边界并为每一个格添加数据
+        self.Map.star_map(self.screen, self.GRAY)
 
 # pygame.key.get_pressed()
 # 返回一个元组，表示当前所有键盘按键的状态（按下或未按下）,可以通过检查元组中的特定键位来确定哪个键被按下。
@@ -43,20 +53,18 @@ class Control():
             elif event.type == pg.KEYUP:
                 self.keys = pg.key.get_pressed()
 
-    def menu_choose(self): # 菜单栏选择塔，默认在屏幕最下面居中，每个卡槽占据一个正方形，边长为屏幕高的15/100，共四个卡槽
+    def menu_choose(self): # 菜单栏选择塔，默认在屏幕最左面居中，每个卡槽占据一个正方形，边长为屏幕高的15/100，共四个卡槽
         per_menu_side = self.Screen_width * 15/100
-        if self.Screen_width - per_menu_side <= self.mouse_pos[1] <= self.Screen_width:
-            if self.Screen_length // 2 - per_menu_side * 2 <= self.mouse_pos[0] <= self.Screen_length // 2 + per_menu_side * 2:
+        if self.Screen_width // 2 - per_menu_side * 2 <= self.mouse_pos[1] <= self.Screen_width // 2 + per_menu_side * 2:
+            if 0 <= self.mouse_pos[0] <= per_menu_side:
                 for i in range(4):
-                    if self.Screen_length // 2 + (i - 2) * per_menu_side <= self.mouse_pos[0] <= self.Screen_length // 2 + (i - 1) * per_menu_side:
+                    if self.Screen_width//2+(i-2)*per_menu_side<=self.mouse_pos[0]<=self.Screen_width//2+(i-1)*per_menu_side:
+                        last_choice = i # 记录点击区域
+                        # 使点击栏图像变化
                         pass
 
     def run(self):
-        # 设置窗口大小和标题 
-        Map = hexmap.HexagonalMap()
-        self.screen = pg.display.set_mode((Map.Screen_length, Map.Screen_width))
-        self.Screen_length = Map.Screen_length
-        self.Screen_width = Map.Screen_width
+        # 屏幕名
         pg.display.set_caption('Honeycomb Fighting')
         # 加载背景音乐
         pg.mixer.music.load("music/my_like.mp3")
@@ -67,20 +75,13 @@ class Control():
         #pg.mixer.music.pause()
         # 停止
         #pg.mixer.music.stop()
-
-        # 填充背景,在地图前使用，不然覆盖地图
-        self.screen.fill(self.WHITE)
         # 凸显中心点
-        pg.draw.circle(self.screen, self.RED, (int(Map.Screen_length // 2), int(Map.Screen_width // 2)), 9, width=0)
-        # 创建实例对象：地图
-        Map.star_map(self.screen, self.GRAY)
+        pg.draw.circle(self.screen, self.RED, (int(self.Map.Screen_length // 2), int(self.Map.Screen_width // 2)), 9, width=0)
         # 总精灵组
         all_sprites = pg.sprite.Group()
-
         '''# 加载精灵
         my_sprite = my_sprite.MySprite(screen, 'path_to_your_image.png')
         all_sprites.add(my_sprite)'''
-
         while not self.done:
             self.event_loop()
             # 显示资源数量
@@ -88,8 +89,6 @@ class Control():
             # 更新所有精灵的状态
             all_sprites.update()
             # 精灵的渲染和显示
-
-
 
             # 更新显示
             pg.display.update()
